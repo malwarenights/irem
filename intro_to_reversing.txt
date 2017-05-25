@@ -28,9 +28,9 @@ For this introductory session of reverse engineering the malware you will need c
 There will be not enough time in the class to get this all running so please come with virtual machine
 ready to run and with the tools at least downloaded.
 
-- please check the prerequisities at https://github.com/malwarenights/rebox
+- please check the prerequisites at https://github.com/malwarenights/rebox
 - Core tools:
-	** Virtualbox or any other wirtualization where you can take snapshots of the state
+	** Virtualbox or any other virtualization where you can take snapshots of the state
 	** Win7/Win10 virtual machine with possibility to take snapshots (recommended VirtualBox)
 	** Immunity Debugger - https://www.immunityinc.com/products/debugger/
 	** python27 32 bit - https://www.python.org/downloads/windows/
@@ -62,7 +62,7 @@ http://care.dlservice.microsoft.com/dl/download/2/5/4/254230E8-AEA5-43C5-94F6-88
 * Win7 64bit - SHA1:0bcfc54019ea175b1ee51f6d2b207a3d14dd2b58
  https://www.google.com/search?q=0bcfc54019ea175b1ee51f6d2b207a3d14dd2b58+en_windows_7_professional_with_sp1_x64_dvd_u_676939.iso[en_windows_7_professional_with_sp1_x64_dvd_u_676939.iso]
 
-TIP: You can base the sanbox image also on the MS Virtual machine for testing
+TIP: You can base the sandbox image also on the MS Virtual machine for testing
 - to test how vulnerable it would be to some specific version of Windows + IE/Edge
 
 * https://developer.microsoft.com/en-us/microsoft-edge/tools/vms/linux/
@@ -75,7 +75,7 @@ Malboxes - automated sandbox preparation
 ----------------------------------------
 
 TIP: It is possible to use https://github.com/GoSecure/malboxes["malboxes"] from GoSecure to automate the base installation of sandbox for you. 
-This has the benefit of also automating installation of basic runtime libraries, .Net and essencial packages for you in point and shoot manner.
+This has the benefit of also automating installation of basic runtime libraries, .Net and essential packages for you in point and shoot manner.
 It also install chocolatey package manager to make it easy to install other freeware packages.
 
 - Install dependencies - vagrant, virtualbox, packer
@@ -141,7 +141,7 @@ Sandbox - manual preparation
 - be sure to take the snapshot or cloning a full copy after the base installation
 - instal rudimentary tools and libraries usually exploited by malware
 ( acroread, java jre/jdk, firefox/chrome, flash, office if you want)
-- be sure to take a snapshot after clean install of sanbox
+- be sure to take a snapshot after clean install of sandbox
 
 
 
@@ -323,7 +323,7 @@ Reverse engineering malware - Goals
 -----------------------------------
 
 - understanding on the level of being able reproduce in part or as whole
-- understading communication protocols
+- understanding communication protocols
 - getting encryption keys
 - campaign identificators
 - understanding capabilities of the malware
@@ -592,8 +592,8 @@ image::img/executable_modules.png[executable_modules,scaledwidth="90%"]
 
 
 
-Searchin within running binary
-------------------------------
+Searching within running binary
+-------------------------------
 
 image::img/searching1.png[searching1,scaledwidth="90%"]
 
@@ -617,7 +617,7 @@ Assembly Language
 
 Assembly flavors - Intel
 ------------------------
-- prefered in the windows world
+- preferred in the windows world
 - the important thing first
 - what is being changed is more important
 - you can recognize it by square brackets
@@ -625,7 +625,7 @@ Assembly flavors - Intel
 
 Assembly flavors - AT & T
 -------------------------
-- preffered in the Unix world
+- preferred in the Unix world
 - unix way is to say from where first and to where second
 - you can recognize it by "%"
 
