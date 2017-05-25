@@ -1,0 +1,132 @@
+#!/usr/bin/env pinpoint
+
+[top]
+[font=Comic Sans MS 50px]
+[duration=5.000000]
+-- [img/bug.png] [duration=2.606624]
+Intro to Reversing Engineering (Malware)
+Michal Ambroz
+
+-- [duration=3.483496]
+Prerequisities
+• Windows virtual box
+• Immunity Debugger
+	https://www.immunityinc.com/products/debugger/
+• Kali
+• Radare2
+
+-- [duration=4.000666]
+What to expect today
+• very basics of reverse engineering
+• lab setup tools
+• wannabe Pecha Kucha style
+• 3 hours = 5 blocks
+• 1 block = 5 min presentation + cca 30 min hands-on
+• CTF style exercises
+
+-- [duration=2.335292]
+Reverse Engineering
+
+image::img/re_relation.svg[re_relation,width=20%]
+
+-- [duration=1.167791]
+Recommended Training materials
+
+• OpenSecurityTraining.info - http://opensecuritytraining.info/Training.html
+	* http://opensecuritytraining.info/IntroX86.html[                         Intro to x86 Assembly] - 2-3 days
+	* http://opensecuritytraining.info/IntroX86-64.html[                      Intro to x86_64 Assembly] - 2 days
+	* http://opensecuritytraining.info/IntermediateX86.html[		  Intermediate Intel x86] - 2-3 days
+	* http://opensecuritytraining.info/LifeOfBinaries.html[                   The Life of Binaries] - 2 days
+	* http://opensecuritytraining.info/IntroductionToReverseEngineering.html[ Intro to Reverse Engineering] - 2 days
+	* http://opensecuritytraining.info/ReverseEngineeringMalware.html[        Reverse Engineering Malware] - 2 days
+
+• https://www.sans.org/course/reverse-engineering-malware-malware-analysis-tools-techniques[SANS FOR610: Reverse Engineering Malware] - https://www.sans.org/courses/
+
+• Ian Guile - Reverse Engineering Basics
+	https://www.youtube.com/watch?v=a2EkORFcSZo
+• Reverse Engineering Malware For Newbies ToorCon 16 
+	https://www.youtube.com/watch?v=35teUHnZNGU
+
+-- [duration=0.857027]
+RE Role Models
+• Ange Albertini - https://github.com/corkami - formats, polyglotes 
+• Corelan team - https://www.corelan.be/ - mona
+• 
+
+-- [duration=0.817104]
+Tools
+• Disassemblers & Debuggers:
+	* gdb
+	* HexRays IDA
+	* Hopper
+	* Immunity Debugger
+	* radare2
+	* WinDBG - 
+	* x64dbg - http://x64dbg.com
+
+• Decompilers:
+	* HexRay's Decopiler
+	* ilspy - http://ilspy.net/
+	* 
+
+
+
+• Editors:
+	* Hex Editor Neo
+	* HXD - https://mh-nexus.de/en/hxd/
+
+
+
+
+• Detect It Easy
+• Sublime Text
+
+-- [duration=1.430161]
+Example Apps:
+• App1-7.exe	- Joe Giron
+
+-- [duration=1.135585]
+Games:
+• Labyrenth - http://labyrenth.com/	- Palo Alto Networks
+• Flare-on
+	• 2015 - https://www.fireeye.com/blog/threat-research/2015/09/flare-on_challenges.html
+
+-- [duration=0.976188]
+Other resources
+
+• http://reverseengineering.stackexchange.com/
+
+-- [duration=0.899124]
+Lab Setup - 01
+• start from the setup for behavioral analysis
+• virtual machine
+• file sharing - read-only, read+write
+• networking - hostonly + proxy/routing
+• honey net or/and dirtyline
+• think of automation of the process like vagrant
+
+-- [duration=1.501410]
+Immunity Debugger
+• http://blog.talosintel.com/2014/04/using-immunity-debugger-api-to-automate.html[Using the Immunity Debugger API to Automate Analysis]
+
+-- [duration=1.055069]
+Memory Management
+
+-- [duration=0.808264]
+Import Address Table
+
+-- [duration=0.887017]
+Segmentation
+
+-- [duration=0.970147]
+Paging
+
+-- [duration=1.798846]
+DLL Injection
+• http://stackoverflow.com/questions/35924578/c-windows-dll-injection-by-ntcreatethreadex-function-is-not-worked
+• http://www.p-programowanie.pl/cpp/dll-injection/
+
+--
+Backup
+
+• Alex Sotirov - Reverse Engineering 1 - https://www.youtube.com/watch?v=cATBah30jk0

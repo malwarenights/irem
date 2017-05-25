@@ -1,0 +1,956 @@
+Intro to Reversing Engineering (Malware)
+========================================
+:author:	MalwareNights 2017
+:backend:	slidy
+:max-width:	45em
+:duration:	1
+:data-uri:
+:icons:
+
+
+
+What to expect today
+--------------------
+- very basics of reverse engineering
+- CTF/Jeopardy style exercises
+- lab setup tools - hopefully already distributed and all setup finished before
+- real malware samples
+- focus on malware in windows PE binaries
+
+image::img/bug.png[bug,scaledwidth="90%"]
+
+
+
+What you will need
+------------------
+
+For this introductory session of reverse engineering the malware you will need certain tooling.
+There will be not enough time in the class to get this all running so please come with virtual machine
+ready to run and with the tools at least downloaded.
+
+- please check the prerequisities at https://github.com/malwarenights/rebox
+- Core tools:
+	** Virtualbox or any other wirtualization where you can take snapshots of the state
+	** Win7/Win10 virtual machine with possibility to take snapshots (recommended VirtualBox)
+	** Immunity Debugger - https://www.immunityinc.com/products/debugger/
+	** python27 32 bit - https://www.python.org/downloads/windows/
+	** WinDBG - https://developer.microsoft.com/en-us/windows/hardware/windows-driver-kit
+	** dnSpy - https://github.com/0xd4d/dnSpy
+	** ilSpy - http://ilspy.net/
+
+- Optional:
+	** REMnux virtual appliance - https://remnux.org/#distro
+	** gnu core utils such as obsolete but small unxtools or uptodate coreutils tools from git windows package
+	** other debuggers such as ollydbg, x64dbg, ...
+	** other analysis tools like capturebat, sysinternals, peid, binwalk, ... 
+
+
+Sandbox - Base on trusted source
+--------------------------------
+
+TIP: Base the sandbox on some genuine Microsoft ISO (you can use the 30 day trial for the purpose of the class) for example:
+
+* Win10 32bit - SHA1:0b8e56772c71dc7bb73654c61e53998a997e1e4d
+http://care.dlservice.microsoft.com/dl/download/2/5/4/254230E8-AEA5-43C5-94F6-88CE222A5846/14393.0.160715-1616.RS1_RELEASE_CLIENTENTERPRISEEVAL_OEMRET_X86FRE_EN-US.ISO[14393.0.160715-1616.RS1_RELEASE_CLIENTENTERPRISEEVAL_OEMRET_X86FRE_EN-US.ISO]
+
+* Win10 64bit - SHA1:a86ae3d664553cd0ee9a6bcd83a5dbe92e3dc41a
+http://care.dlservice.microsoft.com/dl/download/2/5/4/254230E8-AEA5-43C5-94F6-88CE222A5846/14393.0.160715-1616.RS1_RELEASE_CLIENTENTERPRISEEVAL_OEMRET_X64FRE_EN-US.ISO[14393.0.160715-1616.RS1_RELEASE_CLIENTENTERPRISEEVAL_OEMRET_X64FRE_EN-US.ISO]
+
+* Win7 32bit - SHA1:d89937df3a9bc2ec1a1486195fd308cd3dade928
+ https://www.google.com/search?q=d89937df3a9bc2ec1a1486195fd308cd3dade928+en_windows_7_professional_with_sp1_x86_dvd_u_677056.iso[en_windows_7_professional_with_sp1_x86_dvd_u_677056.iso]
+
+* Win7 64bit - SHA1:0bcfc54019ea175b1ee51f6d2b207a3d14dd2b58
+ https://www.google.com/search?q=0bcfc54019ea175b1ee51f6d2b207a3d14dd2b58+en_windows_7_professional_with_sp1_x64_dvd_u_676939.iso[en_windows_7_professional_with_sp1_x64_dvd_u_676939.iso]
+
+TIP: You can base the sanbox image also on the MS Virtual machine for testing
+- to test how vulnerable it would be to some specific version of Windows + IE/Edge
+
+* https://developer.microsoft.com/en-us/microsoft-edge/tools/vms/linux/
+* https://az412801.vo.msecnd.net/vhd/VMBuild_20141027/VirtualBox/IE9/Windows/IE9.Win7.For.Windows.VirtualBox.zip
+* https://az792536.vo.msecnd.net/vms/VMBuild_20160411/VirtualBox/MSEdge/MSEdge.Win10_14316.VirtualBox.zip
+
+
+
+Malboxes - automated sandbox preparation
+----------------------------------------
+
+TIP: It is possible to use https://github.com/GoSecure/malboxes["malboxes"] from GoSecure to automate the base installation of sandbox for you. 
+This has the benefit of also automating installation of basic runtime libraries, .Net and essencial packages for you in point and shoot manner.
+It also install chocolatey package manager to make it easy to install other freeware packages.
+
+- Install dependencies - vagrant, virtualbox, packer
+
+- Get Virtualbox and vagrant running together
+
+ dnf -y install VirtualBox python-VirtualBox VirtualBox-server akmod-VirtualBox vagrant
+ #needed to compile/install ruby gems by bundler
+ dnf -y install ruby-devel
+ sudo vagrant plugin install winrm
+ sudo vagrant plugin install winrm-fs
+
+
+- Get "packer" from https://www.packer.io/downloads.html
+
+ # installing pre-compiled packer.io
+ wget https://releases.hashicorp.com/packer/1.0.0/packer_1.0.0_linux_amd64.zip
+ unzip packer_1.0.0_linux_amd64.zip
+ mkdir ~/bin
+ # name "packer" collides with tool from cracklib
+ mv packer ~/bin/packer-io
+ chmod +x ~/bin/packer-io
+ export PATH=~/bin:$PATH
+
+
+- Or Building packer yourself
+
+ #Set Go environment for packer.io compilation (not needed if you installed binary package)
+ echo -e '\n#GO Environment\nexport GOPATH=$HOME/go\nexport PATH=$PATH:$GOPATH/bin' | tee -a .bashrc
+
+ go get github.com/mitchellh/packer
+ cd $GOPATH/src/github.com/mitchellh/packer
+ make
+
+- Get "malboxes" tool from GoSecure github repository
+
+ git clone https://github.com/GoSecure/malboxes
+ cd malboxes
+ python3 setup.py build
+ sudo python3 setup.py install
+
+- Build VM
+
+ export PATH=$GOPATH/bin:$PATH
+ malboxes list
+
+- You can fix paths to ISO in ~/.config/malboxes/config.js
+
+ malboxes build win10_32_analyst
+
+- Builds will be created in ~/.cache/malboxes/boxes
+
+ malboxes spin win10_32_analyst test
+
+
+
+Sandbox - manual preparation
+----------------------------
+
+- use virtual box
+- create new virtual machine
+- boot it from one of the MS Windows installation iso images
+- be sure to take the snapshot or cloning a full copy after the base installation
+- instal rudimentary tools and libraries usually exploited by malware
+( acroread, java jre/jdk, firefox/chrome, flash, office if you want)
+- be sure to take a snapshot after clean install of sanbox
+
+
+
+Post installation
+-----------------
+
+- it is recommended to switch to host only networking to have full control over the network traffic
+from-to the sandbox
+
+- after building of the base sandbox it is recommended to mount 2 shares:
+        ** share_ro - read only access to access installation of packages
+        ** share_rw - to be able to write and share the results with host system
+
+
+
+Tools specific for analysis of malware
+--------------------------------------
+
+In this repository you will find lists and scripts to help you downloading the tools used for malware analysis.
+You can decide to:
+
+- download them by hand or using the list of them all (all_downloads.txt)
+
+- use prepared scripts to download them all (from unix machine or using unxtools on windows)
+
+ malware_lab_download.sh
+
+- use prepared scripts to install necessary packages (run in the windows sandbox)
+
+ malware_lab_install.bat
+
+
+
+
+Tools
+-----
+- Disassemblers & Debuggers (in alphabet order):
+	* gdb - https://www.gnu.org/software/gdb/
+	* HexRays IDA - https://www.hex-rays.com/products/ida/index.shtml
+	* Hopper - https://www.hopperapp.com/
+	* Immunity Debugger - https://www.immunityinc.com/products/debugger/
+	* OllyDbg - http://www.ollydbg.de/
+	* radare2 - http://rada.re/
+	* WinDBG - https://developer.microsoft.com/en-us/windows/hardware/windows-driver-kit
+	* x64dbg - http://x64dbg.com
+
+- Decompilers:
+	* dnSpy - https://github.com/0xd4d/dnSpy
+	* HexRay's Decopiler - https://www.hex-rays.com/products/decompiler/
+	* ilspy - http://ilspy.net/
+	* Snowman - https://github.com/yegord/snowman, https://derevenets.com
+
+- Editors:
+	* Hex Editor Neo - https://www.hhdsoftware.com/free-hex-editor
+	* HXD - https://mh-nexus.de/en/hxd/
+
+
+- Packers/Unpackers/Identification:
+	* Detect It Easy - http://ntinfo.biz/
+	* peid - https://www.aldeid.com/wiki/PEiD
+	* packerid - https://github.com/sooshie/packerid
+	* pev - http://pev.sourceforge.net/
+	* UPX - https://upx.github.io/
+	* yara - http://virustotal.github.io/yara/, https://www.dropbox.com/sh/umip8ndplytwzj1/AADdLRsrpJL1CM1vPVAxc5JZa?dl=0[dropbox win binaries]
+
+
+
+
+
+RE Training materials
+---------------------
+
+- OpenSecurityTraining.info - http://opensecuritytraining.info/Training.html
+	* Xeno Kovah - http://opensecuritytraining.info/IntroX86.html[            Intro to x86 Assembly] - 2-3 days
+	* http://opensecuritytraining.info/IntroX86-64.html[                      Intro to x86_64 Assembly] - 2 days
+	* http://opensecuritytraining.info/IntermediateX86.html[		  Intermediate Intel x86] - 2-3 days
+	* http://opensecuritytraining.info/LifeOfBinaries.html[                   The Life of Binaries] - 2 days
+	* http://opensecuritytraining.info/IntroductionToReverseEngineering.html[ Intro to Reverse Engineering] - 2 days
+	* http://opensecuritytraining.info/ReverseEngineeringMalware.html[        Reverse Engineering Malware] - 2 days
+
+- Rensselaer Polytechnic Institute - Malware Analysis
+https://github.com/RPISEC/Malware/
+
+- https://www.sans.org/course/reverse-engineering-malware-malware-analysis-tools-techniques[SANS FOR610: Reverse Engineering Malware] - https://www.sans.org/courses/
+
+- Modern Binary Exploitation
+	* http://security.cs.rpi.edu/courses/binexp-spring2015/
+
+- Dr. Fu's Malware Analysis Tutorials
+	* http://fumalwareanalysis.blogspot.com/p/malware-analysis-tutorials-reverse.html
+
+- Ian Guile - Reverse Engineering Basics
+	* https://www.youtube.com/watch?v=a2EkORFcSZo
+
+- Reverse Engineering Malware For Newbies ToorCon 16
+	* https://www.youtube.com/watch?v=35teUHnZNGU
+
+- Awesome Reverse engineering lists:
+	* https://github.com/wtsxDev/reverse-engineering
+	* https://github.com/onethawt/reverseengineering-reading-list
+	* https://github.com/rshipp/awesome-malware-analysis
+
+- TiGa's Video Tutorial Site
+	* http://www.woodmann.com/TiGa/
+
+- http://reverseengineering.stackexchange.com/
+
+
+
+Malware RE #FF (Follow on Friday)
+---------------------------------
+
+In alphabetical order:
+
+- Ange Albertini - https://github.com/corkami - formats, polyglotes, #shattered pdf
+- benkow - https://twitter.com/benkow_[twitter @benkow_], https://benkowlab.blogspot.com/
+- Brad Duncan - https://www.twitter.com/malware_traffic[twitter @malware_trafic], http://www.malware-traffic-analysis.net/, https://isc.sans.edu/handler_list.html#brad-duncan[ISC Handler], https://virustotal.com/en/user/brad_malware_traffic/[VT @brad_malware_traffic]
+- Corelan team - https://www.corelan.be/ - mona
+- Didier Stevens - https://twitter.com/DidierStevens[twitter @DidierStevens], https://isc.sans.edu/handler_list.html#didier-stevens[ISC Handler], https://blog.didierstevens.com/
+- Florian Roth - https://twitter.com/cyb3rops , http://github.com/Neo23x0
+- Hasherezade - https://twitter.com/hasherezade[twitter @hasherezade], https://hshrzd.wordpress.com/[blog], https://github.com/hasherezade[github]
+- Sergei Frankoff - https://twitter.com/herrcore[twitter @herrcore], http://oalabs.openanalysis.net/author/sergei/[oalabs sergei], https://github.com/OALabs/PyIATRebuild[github OALabs], https://vimeo.com/oalabs[vimeo oalabs]
+- Karsten Hahn - https://twitter.com/struppigel[twitter @struppigel], https://www.youtube.com/channel/UCVFXrUwuWxNlm6UNZtBLJ-A[youtube]
+- Lenny Zeltser - https://twitter.com/lennyzeltser[twitter @lennyzeltser], https://zeltser.com/, https://remnux.org/
+- Philippe Lagadec - https://twitter.com/decalage2[twitter @decalage2], https://github.com/decalage2/[github], http://www.decalage.info/
+- Xavier Mertens - www.twitter.com/xme[twitter @xme], https://isc.sans.edu/handler_list.html#xavier-mertens[ISC Handler], https://blog.rootshell.be/
+- Xeno Kovah - https://twitter.com/xenokovah[twitter @XenoKovah], http://OpenSecurityTraining.info
+- Xylitol - https://twitter.com/xylit0l[twitter @xylit0l], http://www.xylibox.com, https://www.youtube.com/channel/UCSAKb89e8sgVLClN8J-1tTg[youtube @
+XyliboxFrance]
+...
+
+
+
+Reverse Engineering Definition - to be on the same ground
+---------------------------------------------------------
+
+https://en.wikipedia.org/wiki/Reverse_engineering[From Wikipedia:]
+
+Reverse engineering, also called back engineering, is the +
+   [big]*processes of extracting knowledge* +
+or design information from anything man-made and re-producing it or re-producing anything based on the extracted
+information.[1]:3 The process often involves disassembling something (a mechanical device,
+electronic component, computer program, or biological, chemical, or organic matter) and analyzing its
+components and workings in detail.
+
+
+
+Analysis of Malware - chicken or egg ???
+----------------------------------------
+
+image::img/re_relation.svg[re_relation]
+
+
+
+Static malware analysis
+-----------------------
+
+- look, but do not execute
+- file based identification - MD5, SHA1, SHA256, IMPHASH, PEHASH, SSDEEP
+- strings
+- AV detection
+- metadata
+- other features of the binary
+- yara
+
+
+
+Behavioral (Dynamic) malware analysis
+-------------------------------------
+
+- execute the malware
+- more IoC
+- network based IoC and behavioral patterns
+- attackers modus operandi
+
+
+
+Reverse engineering malware - Goals
+-----------------------------------
+
+- understanding on the level of being able reproduce in part or as whole
+- understading communication protocols
+- getting encryption keys
+- campaign identificators
+- understanding capabilities of the malware
+
+
+
+Reverse engineering process
+---------------------------
+
+- get available static and dynamic analysis
+- search for related white-papers
+- take some observation as starting point
+- find it in the (running) binary
+- pivot from there
+- identify how it is used
+- identify from where the functionality is called
+- re-iterate
+
+
+Case 01 - hawkeye
+-----------------
+image::img/overview-hawkeye.jpg[hawkeye,scaledwidth="90%"]
+
+
+Before we dive into x86 assembler
+---------------------------------
+
+- some EXE/DLL binaries are actually bytecode of some higher language
+- some can be easily decompiled to source code or some https://en.wikipedia.org/wiki/Common_Intermediate_Language[intermediate language]
+- Class -> Java
+- .Net EXE (search "mscoree.dll") -> MSIL -> .NET C# / VB
+- Autit EXE (search "AU3!") -> .AU3 source code
+- old VBA native EXE -> .VBA
+- python EXE -> python
+...
+
+
+
+Decompiling Autit
+-----------------
+
+- https://www.autoitscript.com/wiki/Decompiling_FAQ
+- old versions (<= v3.3.11) can be decompiled with exe2aut
+- http://domoticx.com/autoit3-decompiler-exe2aut/
+- http://domoticx.phoenixinteractive.nl/software/exe2aut/Exe2Aut%20v0.10.0.0%20%282014-01-09%29.7z
+- http://145.130.102.57/domoticx/software/exe2aut/Exe2Aut%20v0.10.0.0%20%282014-01-09%29.7z
+- if you are lucky au3 might be just somehow inside the malware (as in our example)
+- in worst case Aut2Exe puts the encrypted script in .rsrc/0/RCDATA/SCRIPT
+
+
+
+Exercise #1 - decompile hawkeye 1
+----------------------------------
+
+- File URL was distributed in phishing email sourced from Italy
+- Filename: gp.exe.vir
+
+Game sample:
+ MD5:   649dd4c7d73782715a5ccb947b5c7c19
+ SHA1:  9e3ff87918f83cfc1d3f7096349eeb1da18e28ee
+ SHA256:de5c90dc6019d7c14b54527b8ca0398867f8c3cccccb7725757bd83e85db4bef gp.exe.vir
+
+ https://www.virustotal.com/latest-scan/de5c90dc6019d7c14b54527b8ca0398867f8c3cccccb7725757bd83e85db4bef[vt]
+ https://pedump.me/649dd4c7d73782715a5ccb947b5c7c19[pedump]
+ http://www.hybrid-analysis.com/sample/de5c90dc6019d7c14b54527b8ca0398867f8c3cccccb7725757bd83e85db4bef?environmentId=1[hybrid-analysis]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=649dd4c7d73782715a5ccb947b5c7c19[md5]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=9e3ff87918f83cfc1d3f7096349eeb1da18e28ee[sha1]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=de5c90dc6019d7c14b54527b8ca0398867f8c3cccccb7725757bd83e85db4bef[sha256]
+ http://www.threatexpert.com/report.aspx?md5=649dd4c7d73782715a5ccb947b5c7c19[threatexpert]
+ http://totalhash.com/analysis/9e3ff87918f83cfc1d3f7096349eeb1da18e28ee[totalhash]
+
+
+Orgiginal sample:
+ MD5:   b9ce0f87a682eab95744d7ddf52d1307
+ SHA1:  11a24fe49579de9262ccc0fb99fd7665757d3700
+ SHA256:11952d4c63189912a76044b1fdb3dcd8fb3484985c6e88e9af4340d16d71e729 gp.exe
+
+https://www.virustotal.com/latest-scan/b9ce0f87a682eab95744d7ddf52d1307[virustotal]
+ https://pedump.me/b9ce0f87a682eab95744d7ddf52d1307[pedump]
+ http://www.hybrid-analysis.com/sample/11952d4c63189912a76044b1fdb3dcd8fb3484985c6e88e9af4340d16d71e729?environmentId=1[hybrid-analysis]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=b9ce0f87a682eab95744d7ddf52d1307[md5]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=11a24fe49579de9262ccc0fb99fd7665757d3700[sha1]
+ https://www.google.com/?gws_rd=ssl#safe=off&q=11952d4c63189912a76044b1fdb3dcd8fb3484985c6e88e9af4340d16d71e729[sha256]
+ http://www.threatexpert.com/report.aspx?md5=b9ce0f87a682eab95744d7ddf52d1307[threatexpert]
+ http://totalhash.com/analysis/11a24fe49579de9262ccc0fb99fd7665757d3700[totalhash]
+
+
+
+Exercise #1 - decompile hawkeye 2
+----------------------------------
+- file gp.exe
+- binwalk gp.exe
+
+ $ binwalk gp.exe
+ DECIMAL       HEXADECIMAL     DESCRIPTION
+ --------------------------------------------------------------------------------
+ 0             0x0             Microsoft executable, portable (PE)
+ 47580         0xB9DC          PNG image, 256 x 256, 8-bit/color RGBA, non-interlaced
+ 241988        0x3B144         Microsoft Cabinet archive data, 781943 bytes, 2 files
+ 1024192       0xFA0C0         XML document, version: "1.0"
+ 1024254       0xFA0FE         Copyright string: "Copyright (c) Microsoft Corporation -->"
+
+- cabextract gp.exe or 7z x gp.exe
+
+ $ cabextract gp.exe
+ Extracting cabinet: gp.exe
+   extracting dWJU.exe
+   extracting YBabB
+
+
+
+Exercise #1 - decompile hawkeye 3 - original sample
+---------------------------------------------------
+- dWJU.exe - that is the Autit runtime - benign
+
+	MD5:   b06e67f9767e5023892d9698703ad098
+	SHA1:  acc07666f4c1d4461d3e1c263cf6a194a8dd1544
+	SHA256:8498900e57a490404e7ec4d8159bee29aed5852ae88bd484141780eaadb727bb dWJU.exe
+
+https://www.virustotal.com/latest-scan/b06e67f9767e5023892d9698703ad098[virustotal]
+	https://pedump.me/b06e67f9767e5023892d9698703ad098[pedump]
+	http://www.hybrid-analysis.com/sample/8498900e57a490404e7ec4d8159bee29aed5852ae88bd484141780eaadb727bb?environmentId=1[ha]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=b06e67f9767e5023892d9698703ad098[md5]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=acc07666f4c1d4461d3e1c263cf6a194a8dd1544[sha1]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=8498900e57a490404e7ec4d8159bee29aed5852ae88bd484141780eaadb727bb[sha256]
+	http://www.threatexpert.com/report.aspx?md5=b06e67f9767e5023892d9698703ad098[threatexpert]
+	http://totalhash.com/analysis/acc07666f4c1d4461d3e1c263cf6a194a8dd1544[totalhash]
+
+- YBabB - that is the Autit script - malicious
+
+- Game sample
+
+	MD5:   e511086a08e2fd47cc65ac6281ca161a
+	SHA1:  d57091c7a058e2286f22875ea4ce9fec6f5fd05e
+	SHA256:19fbd1581183508635b420904d7cc2f4739379bd7c601d7560732681678bc7f0 YBabB
+
+	https://www.virustotal.com/latest-scan/19fbd1581183508635b420904d7cc2f4739379bd7c601d7560732681678bc7f0[vt]
+
+
+- Original sample
+
+	MD5:   3fc296d89e60b35f10963db17d34d15f
+	SHA1:  bf8891efdf1130c4095d8a443f158e8537bbc62f
+	SHA256:e99e4ef16936b9be52f75f19541916682ba8cde6e2b4059aa44c3e9e99ae5029 YBabB
+
+	https://www.virustotal.com/latest-scan/3fc296d89e60b35f10963db17d34d15f[virustotal]
+	https://pedump.me/3fc296d89e60b35f10963db17d34d15f[pedump]
+	http://www.hybrid-analysis.com/sample/e99e4ef16936b9be52f75f19541916682ba8cde6e2b4059aa44c3e9e99ae5029?environmentId=1[ha]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=3fc296d89e60b35f10963db17d34d15f[md5]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=bf8891efdf1130c4095d8a443f158e8537bbc62f[sha1]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=e99e4ef16936b9be52f75f19541916682ba8cde6e2b4059aa44c3e9e99ae5029[sha256]
+	http://www.threatexpert.com/report.aspx?md5=3fc296d89e60b35f10963db17d34d15f[threatexpert]
+	http://totalhash.com/analysis/bf8891efdf1130c4095d8a443f158e8537bbc62f[totalhash]
+
+
+
+Exercise #1 - decompile hawkeye 4
+----------------------------------
+- au3 script contains base64 encoded executable as a comment
+- does the in-memory DLL intection without writing extra files
+- YBabB.bin
+
+	MD5:   480025cb0d1ff97ee054309a9a81a22a
+	SHA1:  be12c957f7cce030bc2f15d841e653d9c8e9bd33
+	SHA256:a8eebda5a25b165cac89d9aea5d0ce657d754db493975d6d3ebd27d4a4a8c5f2 YBabB.bin
+
+https://www.virustotal.com/latest-scan/a8eebda5a25b165cac89d9aea5d0ce657d754db493975d6d3ebd27d4a4a8c5f2[vt]
+	https://pedump.me/480025cb0d1ff97ee054309a9a81a22a[pedump]
+	http://www.hybrid-analysis.com/sample/a8eebda5a25b165cac89d9aea5d0ce657d754db493975d6d3ebd27d4a4a8c5f2?environmentId=1[hybrid-analysis]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=480025cb0d1ff97ee054309a9a81a22a[md5]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=be12c957f7cce030bc2f15d841e653d9c8e9bd33[sha1]
+	https://www.google.com/?gws_rd=ssl#safe=off&q=a8eebda5a25b165cac89d9aea5d0ce657d754db493975d6d3ebd27d4a4a8c5f2[sha256]
+	http://www.threatexpert.com/report.aspx?md5=480025cb0d1ff97ee054309a9a81a22a[threatexpert]
+	http://totalhash.com/analysis/be12c957f7cce030bc2f15d841e653d9c8e9bd33[totalhash]
+
+
+
+Autit Yara Signature
+--------------------
+
+ rule executable_au3 : info compiler autit
+ {
+    meta:
+        description = "Match AU3 autoit executables"
+    strings:
+        $str_au3_01 = "AU3"
+        $str_au3_02 = { A3 48 4B BE 98 6C 4A A9 99 4C 53 0A 86 D6 48 7D }
+    condition:
+        all of them
+ }
+
+
+Decompiling .NET
+----------------
+
+- https://msdn.microsoft.com/en-us/library/f7dy01k1(v=vs.110).aspx[ildasm] - native part of .Net framework
+- http://www.mono-project.com/docs/tools+libraries/tools/monodis/[monodis] - native part of Mono framework
+- https://github.com/0xd4d/dnSpy[dnspy] - can handle dissasembly and assembly as well + debugger and more
+- http://ilspy.net/[ilspy] - .NET assembly browser and decompiler.
+
+
+Case 02 - PlugX
+-----------------
+image::img/overview-plugx.jpg[plugx,scaledwidth="90%"]
+
+
+Immunity Debugger
+-----------------
+- https://www.immunityinc.com/products/debugger/
+- https://github.com/kbandla/ImmunityDebugger
+- http://blog.talosintel.com/2014/04/using-immunity-debugger-api-to-automate.html[Using the Immunity Debugger API to Automate Analysis]
+- http://web.archive.org/web/20151125190038/http://blog.talosintel.com/2014/04/using-immunity-debugger-api-to-automate.html[web.archive.org has the pictures]
+- https://www.corelan.be/index.php/2010/01/26/starting-to-write-immunity-debugger-pycommands-my-cheatsheet/
+- http://sgros-students.blogspot.com/2014/05/immunity-debugger-basics-part-1.html
+- http://sgros-students.blogspot.com/2014/09/immunity-debugger-basics-part-2.html
+- http://sgros-students.blogspot.com/2014/10/reversing-with-immunity-debugger-part2.html
+- http://sgros-students.blogspot.com/2014/09/reversing-with-immunity-debugger.html
+
+
+
+WinDBG
+------
+- https://developer.microsoft.com/en-us/windows/hardware/windows-driver-kit
+- http://codemachine.com/downloads.html
+
+
+
+Using Debugger as looking glass
+-------------------------------
+
+- Open Files
+- Open mutexes
+- Loaded libraries
+- Search for strings
+- Dump memory segments
+
+
+
+Memory Layout
+-------------
+image::img/memory_layout.png[memory,scaledwidth="90%"]
+
+
+Process Memory Layout - 32 bit
+------------------------------
+
+- https://blogs.technet.microsoft.com/askperf/2007/09/28/memory-management-x86-virtual-address-space/
+- 0x0000 0000 - Usermode address space
+- 0x0000 0000 - PE/COFF header
+- 0x7FFF FFFF (resp. 0xBFFF FFFF if /3GB used)
+
+- 0x8000 0000 (resp. 0xC000 0000 if /3GB used) 
+
+
+
+Open files / mutexes ports
+--------------------------
+image::img/handles.png[handles,scaledwidth="90%"]
+
+
+
+Loaded libraries/modules
+------------------------
+image::img/executable_modules.png[executable_modules,scaledwidth="90%"]
+
+
+
+
+Searchin within running binary
+------------------------------
+
+image::img/searching1.png[searching1,scaledwidth="90%"]
+
+image::img/searching2.png[searching2,scaledwidth="90%"]
+
+
+
+Setting break-points
+--------------------
+
+- Manually - got to executable modules (Alt-e), from there to names (Ctrl-n) and set the breakpoint
+- automated - install module like joebp.py to directory PyCommand. Enjoy "!joebp -f" to break on file access
+
+
+
+Assembly Language
+-----------------
+- http://x86.renejeschke.de/, https://github.com/rjeschke/x86.renejeschke.de/archive/f83a9094dabe0dfd407010277ccdf513c09eaaaf/x86.renejeschke.de-f83a9094.tar.gz[github]
+- https://en.wikipedia.org/wiki/Assembly_language
+
+
+Assembly flavors - Intel
+------------------------
+- prefered in the windows world
+- the important thing first
+- what is being changed is more important
+- you can recognize it by square brackets
+
+
+Assembly flavors - AT & T
+-------------------------
+- preffered in the Unix world
+- unix way is to say from where first and to where second
+- you can recognize it by "%"
+
+
+[cols="2*", options="header"] 
+|===
+|Intel syntax
+|AT&T syntax
+
+|instr   foo,segreg:[base+index*scale+disp]
+|instr   %segreg:disp(base,index,scale),foo
+
+|mov     eax,[ebx+20h]
+|movl    0x20(%ebx),%eax
+
+|add     eax,[ebx+ecx*2h
+|addl    (%ebx,%ecx,0x2),%eax
+
+|lea     eax,[ebx+ecx]
+|leal    (%ebx,%ecx),%eax
+
+|sub     eax,[ebx+ecx*4h-20h]
+|subl    -0x20(%ebx,%ecx,0x4),%eax
+|===
+
+
+20 Assembly instructions you need to know
+-----------------------------------------
+- https://www.strchr.com/x86_machine_code_statistics
+image::img/top20_instructions_x86.png[re_relation,width=20%]
+
+http://x86.renejeschke.de/html/file_module_x86_id_176.html[mov]	- EAX = EAX + 1234; EAX = *(EBX)
+http://x86.renejeschke.de/html/file_module_x86_id_269.html[push]	- func(X);       tmp = EAX
+http://x86.renejeschke.de/html/file_module_x86_id_248.html[pop]	- EAX=return(X); EBX = tmp
+
+
+ call	- func(x)
+ ret	- return(X)
+ jmp	- goto LABEL:
+
+ cmp	- if (x - y >= 0):
+ test	- basically and but without assigning value
+ je	- if x == y:
+ jne     - if x != y
+
+ lea	- EAX = &(strHello)
+ fld
+ fstp
+
+ add	- x = x + 42
+ xor     - x = x ^ 42
+ inc     - x++
+ sub     - x = x - 42
+
+ and     - x = y & 42
+ or      - x = y | 42
+
+ shl     = x = x<<1
+
+Types of memory
+---------------
+
+- registers
+
+ mov EAX, 0xDEADBEEF
+
+- stack
+ push EAX
+ 
+- heap
+
+
+- static memory
+
+
+Functions
+---------
+- https://en.wikipedia.org/wiki/Function_prologue[Prologue]
+- Creates new stack frame
+
+ PUSH EBP
+ MOV EBP, ESP
+ SUB ESP, 0C
+
+- Epilogue - returns to previous stack frame
+ MOV ESP, EBP
+ POP EBP
+ RET
+
+
+
+Stack
+-----
+
+image::img/stack.jpg[stack,scaledwidth="90%"]
+
+
+
+
+Interesting API - Debugging
+---------------------------
+
+kernel32.IsDebuggerPresent
+
+
+Interesting API - Library loading
+---------------------------
+kernel32.LoadLibraryA
+kernel32.LoadLibraryW
+
+
+Interesting API - Process manipulation
+--------------------------------------
+kernel32.CreateProcessA
+kernel32.CreateProcessW
+kernel32.CreateThread
+kernel32.CreateRemoteThread
+kernel32.TerminateProcess
+kernel32.ExitProcess
+kernel32.CreateThread
+kernel32.CreateRemoteThread
+user32.ExitWindowsEx
+shell32.ShellExecuteExW
+
+
+Interesting API - File manipulation
+-----------------------------------
+kernel32.CreateFileA
+kernel32.CreateFileW
+kernel32.WriteFileEx
+kernel32.WriteFile
+kernel32.MoveFileA
+kernel32.MoveFileW
+kernel32.MoveFileExA
+kernel32.MoveFileExW
+kernel32.CopyFileA
+kernel32.CopyFileW
+kernel32.CopyFileExA
+kernel32.CopyFileExW
+
+
+Interesting API - mutex/singleton manipulation
+--------------------------------------
+CreateMutexW
+OpenMutexW
+ReleaseMutex
+
+
+
+Import Address Table
+--------------------
+
+
+Rebuild Import Address Table
+----------------------------
+https://github.com/OALabs/PyIATRebuild
+
+
+
+What to look for
+----------------
+
+
+DLL Injection
+-------------
+
+- VirtualAllocEx
+- WriteProcessMemory
+- CreateRemoteThread
+- https://github.com/OpenSecurityResearch/dllinjector
+
+
+DLL Injection - Remote thread
+-----------------------------
+- http://stackoverflow.com/questions/35924578/c-windows-dll-injection-by-ntcreatethreadex-function-is-not-worked
+- http://www.p-programowanie.pl/cpp/dll-injection/
+- http://noobys-journey.blogspot.co.uk/search/label/NtCreateThreadEx
+
+
+
+DLL Injection - Remote Hooking
+------------------------------
+- http://resources.infosecinstitute.com/using-setwindowshookex-for-dll-injection-on-windows/
+- https://github.com/proteansec/visual-studio-projects
+- https://warroom.securestate.com/dll-injection-part-1-setwindowshookex/
+- https://msdn.microsoft.com/en-us/library/windows/desktop/ms644990%28v=vs.85%29.aspx[MSDN - SetWindowsHookEx function]
+- http://msdn.microsoft.com/en-us/library/windows/desktop/ms682583(v=vs.85).aspx[MSDN - DLLMain]
+
+
+
+AtomBombing
+-----------
+
+- code injection technique using the https://msdn.microsoft.com/en-us/library/windows/desktop/ms649053(v=vs.85).aspx[MS Atom tables]
+- doesn't require the traditional injection Api calls (VirtualAllocEx, WriteProcessMemory,CreateRemoteThread)
+- NtQueueApcThread - to copy a payload into a RW memory space in the target process
+- NtSetContextThread - ROP chain that allocates RWX memory, copies the payload into it and executes it.
+- http://blog.ensilo.com/atombombing-a-code-injection-that-bypasses-current-security-solutions
+- https://breakingmalware.com/injection-techniques/atombombing-brand-new-code-injection-for-windows/
+
+
+
+
+Radare2
+-------
+
+- r2con - https://github.com/radareorg/r2con/tree/master/2016
+- http://rada.re/con/
+- http://www.radare.org/get/radare.pdf.html
+
+
+Windows structures
+------------------
+
+- TIB - Thread Information Block (sometimes as well TEB)
+- PEB - Process Environment Block
+- PEB.Loader
+- VAD - http://www.dfrws.org/2007/proceedings/p62-dolan-gavitt.pdf[Virtual Address Descriptor]
+
+
+TIB/TEB
+-------
+
+- http://nasutechtips.blogspot.cz/2011/01/thread-information-block-tib-and-fs.html
+
+
+EXE Overlay
+-----------
+
+- simply EXE + data
+- https://support.microsoft.com/en-us/help/84062/how-to-append-data-to-the-end-of-an-.exe-file
+
+PE Malformations
+----------------
+
+- https://media.blackhat.com/bh-us-11/Vuksan/BH_US_11_VuksanPericin_PECOFF_Slides.pdf
+
+
+
+Shell Code
+----------
+
+- http://sh3llc0d3r.com/windows-reverse-shell-shellcode-ii/
+
+
+
+Next Level
+----------
+
+- Windows Internals and Kernel Rootkits - http://codemachine.com/courses.html, http://codemachine.com/downloads.html
+
+
+
+
+
+
+
+Backup
+------
+
+- Dennis Yurichev - https://beginners.re/
+- Alex Sotirov - Reverse Engineering 1 - https://www.youtube.com/watch?v=cATBah30jk0
+- Ionut Popescu - Windows Shellcodes - https://def.camp/wp-content/uploads/dc2016/Day%201/Ionut_Popescu_Defcamp_Updated.pptx
+- https://wiki.base48.cz//REbejs
+- http://sec-cave.cz/2015/10/nebojte-se-reverzniho-inzenyrstvi-i/
+- http://www.soom.cz/clanky/422--Cracking4neWBies-Lekce-c1
+- http://re.jecool.net/forum/
+- http://www.slideshare.net/intertelinvestigations/reverse-engineering-malware-a-practical-guide
+- http://www.reverse4you.org
+- http://exelab.ru
+- http://wasm.ru
+- http://kernelmode.info
+- http://tuts4you.com
+- https://www.mindomo.com/mindmap/resp-reverse-engineering-for-security-professionals-3d7b30b76c5740ac9619fb4a5f56db0d
+- https://github.com/ezeteze/ansible-cuckoo
+- https://chocolatey.org/
+- https://github.com/tylerph3/awesome-reversing
+- https://github.com/wtsxDev/reverse-engineering
+
+
+
+Code Coverage
+-------------
+
+- KLEE - symbolic execution, automatic generation of test-cases
+http://doar-e.github.io/blog/2015/08/18/keygenning-with-klee/
+
+
+
+Packer identification
+---------------------
+- Detect it Easy - http://ntinfo.biz/, 
+- PeID
+
+
+
+Visualisation of binaries
+-------------------------
+
+- http://binvis.io/
+
+
+
+Games:
+------
+- Labyrenth - http://labyrenth.com/	- Palo Alto Networks
+- Flare-on
+	- 2015 - https://www.fireeye.com/blog/threat-research/2015/09/flare-on_challenges.html
+
+
+Malware source code
+-------------------
+- https://github.com/malwares
+- https://github.com/aainz/TinyNuke
+
+
+
+List of Measures and antimeasures
+---------------------------------
+
+- CIA https://wikileaks.org/ciav7p1/cms/page_14587109.html[Development Tradecraft DOs and DON'Ts]
+
+
+
+RE with radare
+--------------
+
+- https://www.youtube.com/watch?v=LAkYW5ixvhg
